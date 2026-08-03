@@ -2,18 +2,28 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>FHU Sneak Out</title>
 <style>
-  body { margin:0; background:#0d0d18; display:flex; align-items:center; justify-content:center; min-height:100vh; font-family: 'Courier New', monospace; }
-  #wrap { position:relative; width:800px; height:540px; }
-  canvas { display:block; background:#0d0d18; image-rendering: pixelated; border:2px solid #444; }
-  .overlay { position:absolute; top:0; left:0; width:800px; height:540px; background:rgba(10,10,20,0.92); color:#eee; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
-  .overlay h1 { font-size:28px; color:#ffd166; letter-spacing:2px; margin-bottom:10px; }
-  .overlay p { font-size:14px; color:#ccc; max-width:560px; line-height:1.6; margin:6px 0; }
-  .overlay button { margin-top:18px; padding:12px 28px; font-size:16px; font-family:inherit; background:#ffd166; color:#1a1a1a; border:none; border-radius:4px; cursor:pointer; letter-spacing:1px; }
+  html, body { margin:0; height:100%; overscroll-behavior:none; touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  body { background:#0d0d18; display:flex; align-items:center; justify-content:center; font-family: 'Courier New', monospace; }
+  #wrap { position:relative; touch-action:none; }
+  canvas { display:block; width:100%; height:100%; background:#0d0d18; image-rendering: pixelated; border:2px solid #444; touch-action:none; }
+  .overlay { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(10,10,20,0.94); color:#eee; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; z-index:10; box-sizing:border-box; padding:1rem; overflow-y:auto; }
+  .overlay h1 { font-size: clamp(18px, 5vw, 28px); color:#ffd166; letter-spacing:2px; margin-bottom:10px; }
+  .overlay p { font-size: clamp(11px, 2.6vw, 14px); color:#ccc; max-width:560px; line-height:1.6; margin:5px 0; }
+  .overlay button { margin-top:16px; padding:12px 28px; font-size:15px; font-family:inherit; background:#ffd166; color:#1a1a1a; border:none; border-radius:4px; cursor:pointer; letter-spacing:1px; }
   .overlay button:hover { background:#ffdd8a; }
-  .score { font-size:36px; color:#4fd1c5; margin:10px 0; }
+  .score { font-size:32px; color:#4fd1c5; margin:10px 0; }
   .hidden { display:none; }
+  .joystick-base { position:absolute; width:90px; height:90px; margin-left:-45px; margin-top:-45px; border-radius:50%; background:rgba(255,255,255,0.12); border:2px solid rgba(255,255,255,0.35); display:none; z-index:5; pointer-events:none; }
+  .joystick-knob { position:absolute; width:44px; height:44px; margin-left:-22px; margin-top:-22px; border-radius:50%; background:rgba(255,209,102,0.55); border:2px solid rgba(255,209,102,0.85); display:none; z-index:6; pointer-events:none; }
+  #rotateHint { position:absolute; inset:0; background:rgba(10,10,20,0.96); color:#eee; display:none; align-items:center; justify-content:center; flex-direction:column; text-align:center; z-index:100; font-family:'Courier New',monospace; padding:2rem; box-sizing:border-box; }
+  #rotateHint .big { font-size:15px; color:#ffd166; margin-bottom:8px; }
+  #rotateHint .small { font-size:12px; color:#888; margin-bottom:16px; }
+  #rotateHint button { padding:8px 20px; font-size:12px; font-family:inherit; background:transparent; color:#aaa; border:1px solid #555; border-radius:4px; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -23,7 +33,8 @@
   <div id="startScreen" class="overlay">
     <h1>FHU SNEAK OUT</h1>
     <p>Curfew's in effect. Get across campus without getting spotted by security.</p>
-    <p>WASD / Arrow keys to move. Avoid the yellow vision cones. Duck behind trees, pillars, tables and walls to break line of sight. Reach the green exit to move to the next area.</p>
+    <p>Desktop: WASD / Arrow keys to move. Mobile: touch and drag anywhere to steer with the on-screen joystick.</p>
+    <p>Avoid the yellow vision cones. Duck behind trees, pillars, tables and walls to break line of sight. Reach the green exit to move to the next area.</p>
     <p style="color:#c58cff;">Purple watchtowers sweep their cone in a full circle and never move — time your dash for the gap in the sweep instead of beelining for the exit.</p>
     <p style="color:#ffd166;">Badger Gym has a pool — moving near the water can make noise and draw a guard even outside their cone.</p>
     <p style="color:#ffa94d;">Every area has an objective (gold diamond) you must grab before the exit unlocks: Commons — paint the lion statue. Gardner — retrieve your bible. Badger Gym — retrieve clothing from the middle of the pool. Brown Kopel — retrieve your scholarship. Lloyd Auditorium — put on your shorts. Gano/Lions Pride — check your mail.</p>
@@ -37,18 +48,68 @@
     <div class="score" id="endScore"></div>
     <button id="restartBtn">RUN AGAIN</button>
   </div>
+
+  <div id="rotateHint">
+    <div class="big">ROTATE TO LANDSCAPE</div>
+    <div class="small">This game plays best sideways — it'll fill more of the screen.</div>
+    <button id="dismissRotateHint">Continue anyway</button>
+  </div>
 </div>
 
 <script>
+const wrap = document.getElementById('wrap');
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const CW = 800, CH = 540, HUD_H = 40, PF_TOP = HUD_H, PF_BOTTOM = CH;
+const ASPECT = CW / CH;
 
 const startScreen = document.getElementById('startScreen');
 const endScreen = document.getElementById('endScreen');
 const endTitle = document.getElementById('endTitle');
 const endSub = document.getElementById('endSub');
 const endScore = document.getElementById('endScore');
+const rotateHint = document.getElementById('rotateHint');
+
+let rotateHintDismissed = false;
+const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+
+function fitCanvas(){
+  const availW = window.innerWidth;
+  const availH = window.innerHeight;
+  let w, h;
+  if (availW / availH > ASPECT) {
+    h = availH;
+    w = h * ASPECT;
+  } else {
+    w = availW;
+    h = w / ASPECT;
+  }
+  wrap.style.width = Math.floor(w) + 'px';
+  wrap.style.height = Math.floor(h) + 'px';
+}
+
+function checkOrientation(){
+  const isPortrait = window.innerHeight > window.innerWidth;
+  if (isTouchDevice && isPortrait && !rotateHintDismissed) {
+    rotateHint.style.display = 'flex';
+  } else {
+    rotateHint.style.display = 'none';
+  }
+}
+
+function handleViewportChange(){
+  fitCanvas();
+  checkOrientation();
+}
+
+document.getElementById('dismissRotateHint').addEventListener('click', () => {
+  rotateHintDismissed = true;
+  checkOrientation();
+});
+
+window.addEventListener('resize', handleViewportChange);
+window.addEventListener('orientationchange', () => setTimeout(handleViewportChange, 100));
+handleViewportChange();
 
 function rectsOverlap(a,b){
   return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
@@ -212,6 +273,77 @@ let elapsed = 0;
 let player, guards, towers, item, lastTime;
 const keys = {};
 
+const joystick = {active:false, touchId:null, originX:0, originY:0, dx:0, dy:0};
+const joyBase = document.createElement('div');
+joyBase.className = 'joystick-base';
+const joyKnob = document.createElement('div');
+joyKnob.className = 'joystick-knob';
+wrap.appendChild(joyBase);
+wrap.appendChild(joyKnob);
+const JOY_RADIUS = 45;
+const JOY_DEADZONE = 8;
+
+function wrapRelativePos(touch){
+  const r = wrap.getBoundingClientRect();
+  return {x: touch.clientX - r.left, y: touch.clientY - r.top};
+}
+
+wrap.addEventListener('touchstart', e => {
+  if (state !== 'PLAYING') return;
+  if (joystick.touchId !== null) return;
+  const t = e.changedTouches[0];
+  const pos = wrapRelativePos(t);
+  joystick.active = true;
+  joystick.touchId = t.identifier;
+  joystick.originX = pos.x;
+  joystick.originY = pos.y;
+  joystick.dx = 0;
+  joystick.dy = 0;
+  joyBase.style.left = pos.x + 'px';
+  joyBase.style.top = pos.y + 'px';
+  joyBase.style.display = 'block';
+  joyKnob.style.left = pos.x + 'px';
+  joyKnob.style.top = pos.y + 'px';
+  joyKnob.style.display = 'block';
+  e.preventDefault();
+}, {passive:false});
+
+wrap.addEventListener('touchmove', e => {
+  if (joystick.touchId === null) return;
+  for (const t of e.changedTouches) {
+    if (t.identifier !== joystick.touchId) continue;
+    const pos = wrapRelativePos(t);
+    const dx = pos.x - joystick.originX, dy = pos.y - joystick.originY;
+    const dist = Math.hypot(dx, dy);
+    const clamped = Math.min(dist, JOY_RADIUS);
+    const ang = Math.atan2(dy, dx);
+    const kx = Math.cos(ang) * clamped, ky = Math.sin(ang) * clamped;
+    joyKnob.style.left = (joystick.originX + kx) + 'px';
+    joyKnob.style.top = (joystick.originY + ky) + 'px';
+    if (dist < JOY_DEADZONE) {
+      joystick.dx = 0; joystick.dy = 0;
+    } else {
+      joystick.dx = kx / JOY_RADIUS;
+      joystick.dy = ky / JOY_RADIUS;
+    }
+  }
+  e.preventDefault();
+}, {passive:false});
+
+function endJoyTouch(e){
+  for (const t of e.changedTouches) {
+    if (t.identifier !== joystick.touchId) continue;
+    joystick.active = false;
+    joystick.touchId = null;
+    joystick.dx = 0;
+    joystick.dy = 0;
+    joyBase.style.display = 'none';
+    joyKnob.style.display = 'none';
+  }
+}
+wrap.addEventListener('touchend', endJoyTouch);
+wrap.addEventListener('touchcancel', endJoyTouch);
+
 function initLevel(idx){
   const L = LEVELS[idx];
   player = {x:L.spawn.x, y:L.spawn.y, w:14, h:14, speed:150};
@@ -243,6 +375,10 @@ function endRun(caught){
   endSub.textContent = caught ? ('Caught at ' + LEVELS[levelIndex].name) : 'Full campus crossed. Nice run.';
   endScore.textContent = elapsed.toFixed(1) + 's';
   endScreen.classList.remove('hidden');
+  joystick.active = false;
+  joystick.touchId = null;
+  joyBase.style.display = 'none';
+  joyKnob.style.display = 'none';
 }
 
 function losBlocked(gx,gy,px,py,covers){
@@ -262,10 +398,15 @@ function update(dt){
   const L = LEVELS[levelIndex];
 
   let mvx=0, mvy=0;
-  if(keys['arrowup']||keys['w']) mvy -= 1;
-  if(keys['arrowdown']||keys['s']) mvy += 1;
-  if(keys['arrowleft']||keys['a']) mvx -= 1;
-  if(keys['arrowright']||keys['d']) mvx += 1;
+  if (joystick.active && (joystick.dx !== 0 || joystick.dy !== 0)) {
+    mvx = joystick.dx;
+    mvy = joystick.dy;
+  } else {
+    if(keys['arrowup']||keys['w']) mvy -= 1;
+    if(keys['arrowdown']||keys['s']) mvy += 1;
+    if(keys['arrowleft']||keys['a']) mvx -= 1;
+    if(keys['arrowright']||keys['d']) mvx += 1;
+  }
   const mag = Math.hypot(mvx,mvy) || 1;
   const dx = (mvx/mag) * player.speed * dt;
   const dy = (mvy/mag) * player.speed * dt;
