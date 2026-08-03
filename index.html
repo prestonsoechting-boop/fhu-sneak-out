@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FHU Sneak Out</title>
+<style>
+  body { margin:0; background:#0d0d18; display:flex; align-items:center; justify-content:center; min-height:100vh; font-family: 'Courier New', monospace; }
+  #wrap { position:relative; width:800px; height:540px; }
+  canvas { display:block; background:#0d0d18; image-rendering: pixelated; border:2px solid #444; }
+  .overlay { position:absolute; top:0; left:0; width:800px; height:540px; background:rgba(10,10,20,0.92); color:#eee; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+  .overlay h1 { font-size:28px; color:#ffd166; letter-spacing:2px; margin-bottom:10px; }
+  .overlay p { font-size:14px; color:#ccc; max-width:560px; line-height:1.6; margin:6px 0; }
+  .overlay button { margin-top:18px; padding:12px 28px; font-size:16px; font-family:inherit; background:#ffd166; color:#1a1a1a; border:none; border-radius:4px; cursor:pointer; letter-spacing:1px; }
+  .overlay button:hover { background:#ffdd8a; }
+  .score { font-size:36px; color:#4fd1c5; margin:10px 0; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game" width="800" height="540"></canvas>
+
+  <div id="startScreen" class="overlay">
+    <h1>FHU SNEAK OUT</h1>
+    <p>Curfew's in effect. Get across campus without getting spotted by security.</p>
+    <p>WASD / Arrow keys to move. Avoid the yellow vision cones. Duck behind trees, pillars, tables and walls to break line of sight. Reach the green exit to move to the next area.</p>
+    <p style="color:#c58cff;">Purple watchtowers sweep their cone in a full circle and never move — time your dash for the gap in the sweep instead of beelining for the exit.</p>
+    <p style="color:#ffd166;">Badger Gym has a pool — moving near the water can make noise and draw a guard even outside their cone.</p>
+    <p style="color:#ffa94d;">Every area has an objective (gold diamond) you must grab before the exit unlocks: Commons — paint the lion statue. Gardner — retrieve your bible. Badger Gym — retrieve clothing from the middle of the pool. Brown Kopel — retrieve your scholarship. Lloyd Auditorium — put on your shorts. Gano/Lions Pride — check your mail.</p>
+    <p>Score is total time survived. The further you get, the higher it climbs.</p>
+    <button id="startBtn">START RUN</button>
+  </div>
+
+  <div id="endScreen" class="overlay hidden">
+    <h1 id="endTitle">SPOTTED!</h1>
+    <p id="endSub"></p>
+    <div class="score" id="endScore"></div>
+    <button id="restartBtn">RUN AGAIN</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const CW = 800, CH = 540, HUD_H = 40, PF_TOP = HUD_H, PF_BOTTOM = CH;
+
+const startScreen = document.getElementById('startScreen');
+const endScreen = document.getElementById('endScreen');
+const endTitle = document.getElementById('endTitle');
+const endSub = document.getElementById('endSub');
+const endScore = document.getElementById('endScore');
+
+function rectsOverlap(a,b){
+  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+function pointInRect(px,py,r){
+  return px>=r.x && px<=r.x+r.w && py>=r.y && py<=r.y+r.h;
+}
+function normAngle(a){
+  while(a>Math.PI) a-=Math.PI*2;
+  while(a<-Math.PI) a+=Math.PI*2;
+  return a;
+}
+
+const LEVELS = [
+{
+  name: "THE COMMONS",
+  spawn: {x:40,y:480},
+  exit: {x:740,y:60,w:44,h:44},
+  item: {x:390,y:255,w:18,h:18,label:'lion statue', hudLabel:'paint the lion statue'},
+  covers: [
+    {x:200,y:150,w:26,h:26,label:'tree'},
+    {x:380,y:320,w:26,h:26,label:'tree'},
+    {x:560,y:130,w:26,h:26,label:'tree'},
+    {x:630,y:400,w:26,h:26,label:'bench'},
+    {x:120,y:300,w:50,h:18,label:'bench'}
+  ],
+  noiseZones: [],
+  guards: [
+    {waypoints:[{x:150,y:270},{x:660,y:270}], speed:92, range:150, halfAngle:0.45},
+    {waypoints:[{x:400,y:80},{x:400,y:450}], speed:92, range:140, halfAngle:0.4},
+    {waypoints:[{x:100,y:120},{x:600,y:420}], speed:85, range:140, halfAngle:0.4}
+  ],
+  towers: [
+    {x:700,y:150, range:150, halfAngle:0.32, rotSpeed:1.5, startAngle:0}
+  ]
+},
+{
+  name: "GARDNER CENTER",
+  spawn: {x:40,y:480},
+  exit: {x:740,y:60,w:44,h:44},
+  item: {x:480,y:260,w:18,h:18,label:'bible', hudLabel:'retrieve your bible'},
+  covers: [
+    {x:150,y:200,w:20,h:60,label:'pillar'},
+    {x:300,y:100,w:20,h:60,label:'pillar'},
+    {x:300,y:340,w:20,h:60,label:'pillar'},
+    {x:480,y:200,w:20,h:60,label:'pillar'},
+    {x:620,y:100,w:20,h:60,label:'pillar'},
+    {x:620,y:360,w:20,h:60,label:'pillar'}
+  ],
+  noiseZones: [],
+  guards: [
+    {waypoints:[{x:120,y:150},{x:500,y:150},{x:500,y:420},{x:120,y:420}], speed:86, range:130, halfAngle:0.4},
+    {waypoints:[{x:660,y:80},{x:660,y:460}], speed:98, range:130, halfAngle:0.4},
+    {waypoints:[{x:420,y:150},{x:420,y:420}], speed:80, range:130, halfAngle:0.4}
+  ],
+  towers: [
+    {x:600,y:250, range:150, halfAngle:0.32, rotSpeed:1.25, startAngle:1.0}
+  ]
+},
+{
+  name: "BADGER GYMNASIUM",
+  spawn: {x:40,y:480},
+  exit: {x:740,y:60,w:44,h:44},
+  item: {x:400,y:280,w:18,h:18,label:'clothes', hudLabel:'retrieve your clothing from the pool'},
+  covers: [
+    {x:100,y:100,w:60,h:20,label:'bleachers'},
+    {x:100,y:420,w:60,h:20,label:'bleachers'},
+    {x:650,y:100,w:60,h:20,label:'lockers'},
+    {x:650,y:420,w:60,h:20,label:'lockers'}
+  ],
+  noiseZones: [{x:250,y:170,w:300,h:220}],
+  guards: [
+    {waypoints:[{x:150,y:80},{x:660,y:80}], speed:90, range:140, halfAngle:0.4},
+    {waypoints:[{x:660,y:460},{x:150,y:460}], speed:90, range:140, halfAngle:0.4},
+    {waypoints:[{x:400,y:100},{x:400,y:440}], speed:80, range:130, halfAngle:0.4}
+  ],
+  towers: [
+    {x:700,y:150, range:140, halfAngle:0.32, rotSpeed:1.6, startAngle:2.0}
+  ]
+},
+{
+  name: "BROWN KOPEL BUSINESS CENTER",
+  spawn: {x:40,y:480},
+  exit: {x:740,y:60,w:44,h:44},
+  item: {x:390,y:220,w:18,h:18,label:'scholarship', hudLabel:'retrieve your scholarship'},
+  covers: [
+    {x:200,y:60,w:16,h:100,label:'cubicle'},
+    {x:400,y:60,w:16,h:100,label:'cubicle'},
+    {x:600,y:60,w:16,h:100,label:'cubicle'},
+    {x:200,y:360,w:16,h:100,label:'cubicle'},
+    {x:400,y:360,w:16,h:100,label:'cubicle'},
+    {x:600,y:360,w:16,h:100,label:'cubicle'}
+  ],
+  noiseZones: [],
+  guards: [
+    {waypoints:[{x:80,y:160},{x:730,y:160}], speed:104, range:160, halfAngle:0.35},
+    {waypoints:[{x:730,y:290},{x:80,y:290}], speed:104, range:160, halfAngle:0.35},
+    {waypoints:[{x:80,y:430},{x:730,y:430}], speed:104, range:160, halfAngle:0.35}
+  ],
+  towers: [
+    {x:700,y:100, range:150, halfAngle:0.32, rotSpeed:1.4, startAngle:0.5}
+  ]
+},
+{
+  name: "LLOYD AUDITORIUM",
+  spawn: {x:400,y:490},
+  exit: {x:380,y:60,w:44,h:44},
+  item: {x:380,y:110,w:18,h:18,label:'shorts', hudLabel:'put on your shorts'},
+  covers: [
+    {x:100,y:220,w:250,h:14,label:'seats'},
+    {x:450,y:220,w:250,h:14,label:'seats'},
+    {x:100,y:280,w:250,h:14,label:'seats'},
+    {x:450,y:280,w:250,h:14,label:'seats'},
+    {x:100,y:340,w:250,h:14,label:'seats'},
+    {x:450,y:340,w:250,h:14,label:'seats'}
+  ],
+  noiseZones: [],
+  shadowZone: {x:0,y:200,w:800,h:280},
+  guards: [
+    {waypoints:[{x:100,y:150},{x:700,y:150}], speed:92, range:180, halfAngle:0.4},
+    {waypoints:[{x:700,y:410},{x:100,y:410}], speed:92, range:180, halfAngle:0.4},
+    {waypoints:[{x:250,y:100},{x:550,y:100}], speed:86, range:150, halfAngle:0.4}
+  ],
+  towers: [
+    {x:400,y:130, range:140, halfAngle:0.32, rotSpeed:1.7, startAngle:1.5}
+  ]
+},
+{
+  name: "GANO / LIONS PRIDE",
+  spawn: {x:40,y:80},
+  exit: {x:740,y:460,w:44,h:44},
+  item: {x:390,y:350,w:18,h:18,label:'mail', hudLabel:'check your mail'},
+  covers: [
+    {x:150,y:100,w:60,h:40,label:'table'},
+    {x:300,y:150,w:60,h:40,label:'table'},
+    {x:500,y:100,w:60,h:40,label:'table'},
+    {x:600,y:180,w:60,h:40,label:'table'},
+    {x:0,y:230,w:340,h:20,label:'wall'},
+    {x:460,y:230,w:340,h:20,label:'wall'},
+    {x:150,y:310,w:30,h:50,label:'vending'},
+    {x:300,y:360,w:30,h:50,label:'vending'},
+    {x:500,y:310,w:30,h:50,label:'vending'},
+    {x:600,y:390,w:30,h:50,label:'vending'}
+  ],
+  noiseZones: [],
+  guards: [
+    {waypoints:[{x:100,y:60},{x:700,y:60},{x:700,y:200},{x:100,y:200}], speed:98, range:150, halfAngle:0.4},
+    {waypoints:[{x:340,y:240},{x:460,y:240}], speed:70, range:140, halfAngle:0.45},
+    {waypoints:[{x:700,y:280},{x:100,y:280},{x:100,y:460},{x:700,y:460}], speed:98, range:150, halfAngle:0.4}
+  ],
+  towers: [
+    {x:400,y:210, range:140, halfAngle:0.32, rotSpeed:1.8, startAngle:0},
+    {x:680,y:400, range:150, halfAngle:0.32, rotSpeed:1.5, startAngle:3.0}
+  ]
+}
+];
+
+let state = 'START';
+let levelIndex = 0;
+let elapsed = 0;
+let player, guards, towers, item, lastTime;
+const keys = {};
+
+function initLevel(idx){
+  const L = LEVELS[idx];
+  player = {x:L.spawn.x, y:L.spawn.y, w:14, h:14, speed:150};
+  guards = L.guards.map(g => ({
+    wp: g.waypoints, target:1, pos:{x:g.waypoints[0].x, y:g.waypoints[0].y},
+    speed:g.speed, range:g.range, halfAngle:g.halfAngle, dir:{x:1,y:0}
+  }));
+  towers = (L.towers || []).map(t => ({
+    pos:{x:t.x, y:t.y}, range:t.range, halfAngle:t.halfAngle, rotSpeed:t.rotSpeed, angle:t.startAngle
+  }));
+  item = L.item ? {x:L.item.x, y:L.item.y, w:L.item.w, h:L.item.h, label:L.item.label, hudLabel:L.item.hudLabel, collected:false} : null;
+}
+
+function startRun(){
+  levelIndex = 0;
+  elapsed = 0;
+  initLevel(0);
+  state = 'PLAYING';
+  startScreen.classList.add('hidden');
+  endScreen.classList.add('hidden');
+  canvas.focus();
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+}
+
+function endRun(caught){
+  state = 'END';
+  endTitle.textContent = caught ? 'SPOTTED!' : 'YOU MADE IT OFF CAMPUS!';
+  endSub.textContent = caught ? ('Caught at ' + LEVELS[levelIndex].name) : 'Full campus crossed. Nice run.';
+  endScore.textContent = elapsed.toFixed(1) + 's';
+  endScreen.classList.remove('hidden');
+}
+
+function losBlocked(gx,gy,px,py,covers){
+  const steps = 16;
+  for(let i=1;i<steps;i++){
+    const t = i/steps;
+    const sx = gx + (px-gx)*t;
+    const sy = gy + (py-gy)*t;
+    for(const c of covers){
+      if(pointInRect(sx,sy,c)) return true;
+    }
+  }
+  return false;
+}
+
+function update(dt){
+  const L = LEVELS[levelIndex];
+
+  let mvx=0, mvy=0;
+  if(keys['arrowup']||keys['w']) mvy -= 1;
+  if(keys['arrowdown']||keys['s']) mvy += 1;
+  if(keys['arrowleft']||keys['a']) mvx -= 1;
+  if(keys['arrowright']||keys['d']) mvx += 1;
+  const mag = Math.hypot(mvx,mvy) || 1;
+  const dx = (mvx/mag) * player.speed * dt;
+  const dy = (mvy/mag) * player.speed * dt;
+
+  let nx = player.x + dx;
+  const boxX = {x:nx,y:player.y,w:player.w,h:player.h};
+  let blockedX = false;
+  for(const c of L.covers){ if(rectsOverlap(boxX,c)){ blockedX=true; break; } }
+  if(!blockedX) player.x = Math.max(0, Math.min(CW-player.w, nx));
+
+  let ny = player.y + dy;
+  const boxY = {x:player.x,y:ny,w:player.w,h:player.h};
+  let blockedY = false;
+  for(const c of L.covers){ if(rectsOverlap(boxY,c)){ blockedY=true; break; } }
+  if(!blockedY) player.y = Math.max(PF_TOP, Math.min(CH-player.h, ny));
+
+  const pcx = player.x + player.w/2, pcy = player.y + player.h/2;
+
+  for(const g of guards){
+    const t = g.wp[g.target];
+    const gdx = t.x - g.pos.x, gdy = t.y - g.pos.y;
+    const gdist = Math.hypot(gdx,gdy);
+    if(gdist < 2){
+      g.target = (g.target + 1) % g.wp.length;
+    } else {
+      const nxs = gdx/gdist, nys = gdy/gdist;
+      g.pos.x += nxs * g.speed * dt;
+      g.pos.y += nys * g.speed * dt;
+      g.dir.x = nxs; g.dir.y = nys;
+    }
+  }
+
+  for(const t of towers){
+    t.angle += t.rotSpeed * dt;
+  }
+
+  const threats = [];
+  for(const g of guards){
+    let range = g.range;
+    if(L.shadowZone && pointInRect(g.pos.x,g.pos.y,L.shadowZone)) range *= 0.55;
+    threats.push({x:g.pos.x, y:g.pos.y, angle:Math.atan2(g.dir.y,g.dir.x), range, halfAngle:g.halfAngle});
+  }
+  for(const t of towers){
+    let range = t.range;
+    if(L.shadowZone && pointInRect(t.pos.x,t.pos.y,L.shadowZone)) range *= 0.55;
+    threats.push({x:t.pos.x, y:t.pos.y, angle:t.angle, range, halfAngle:t.halfAngle});
+  }
+
+  for(const th of threats){
+    const ddx = pcx-th.x, ddy = pcy-th.y;
+    const dist = Math.hypot(ddx,ddy);
+    if(dist > th.range) continue;
+    const angleTo = Math.atan2(ddy,ddx);
+    if(Math.abs(normAngle(angleTo-th.angle)) > th.halfAngle) continue;
+    if(losBlocked(th.x,th.y,pcx,pcy,L.covers)) continue;
+    endRun(true);
+    return;
+  }
+
+  for(const nz of L.noiseZones){
+    if(pointInRect(pcx,pcy,nz) && mag>0.1){
+      if(Math.random() < 0.006){
+        const nearGuard = guards.some(g => Math.hypot(g.pos.x-pcx,g.pos.y-pcy) < 260)
+          || towers.some(t => Math.hypot(t.pos.x-pcx,t.pos.y-pcy) < 260);
+        if(nearGuard){ endRun(true); return; }
+      }
+    }
+  }
+
+  if(item && !item.collected && rectsOverlap({x:player.x,y:player.y,w:player.w,h:player.h}, item)){
+    item.collected = true;
+  }
+
+  if(rectsOverlap({x:player.x,y:player.y,w:player.w,h:player.h}, L.exit)){
+    if(!item || item.collected){
+      levelIndex++;
+      if(levelIndex >= LEVELS.length){
+        endRun(false);
+        return;
+      }
+      initLevel(levelIndex);
+    }
+  }
+}
+
+function draw(){
+  const L = LEVELS[levelIndex];
+  ctx.fillStyle = '#12121e';
+  ctx.fillRect(0,0,CW,CH);
+
+  if(L.shadowZone){
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(L.shadowZone.x, L.shadowZone.y, L.shadowZone.w, L.shadowZone.h);
+  }
+  for(const nz of L.noiseZones){
+    ctx.fillStyle = 'rgba(30,110,220,0.35)';
+    ctx.fillRect(nz.x,nz.y,nz.w,nz.h);
+  }
+
+  ctx.fillStyle = '#8b5e34';
+  for(const c of L.covers){
+    ctx.fillStyle = c.label==='wall' ? '#3d3d46' : (c.label==='tree' ? '#2e8b57' : '#8b5e34');
+    ctx.fillRect(c.x,c.y,c.w,c.h);
+  }
+
+  const exitLocked = item && !item.collected;
+  ctx.fillStyle = exitLocked ? 'rgba(230,126,34,0.25)' : 'rgba(46,204,113,0.25)';
+  ctx.fillRect(L.exit.x,L.exit.y,L.exit.w,L.exit.h);
+  ctx.strokeStyle = exitLocked ? '#e67e22' : '#2ecc71';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5,4]);
+  ctx.strokeRect(L.exit.x,L.exit.y,L.exit.w,L.exit.h);
+  ctx.setLineDash([]);
+
+  if(item && !item.collected){
+    ctx.fillStyle = '#f1c40f';
+    ctx.beginPath();
+    ctx.moveTo(item.x+item.w/2, item.y);
+    ctx.lineTo(item.x+item.w, item.y+item.h/2);
+    ctx.lineTo(item.x+item.w/2, item.y+item.h);
+    ctx.lineTo(item.x, item.y+item.h/2);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  for(const g of guards){
+    let range = g.range;
+    if(L.shadowZone && pointInRect(g.pos.x,g.pos.y,L.shadowZone)) range *= 0.55;
+    const guardAngle = Math.atan2(g.dir.y,g.dir.x);
+    ctx.fillStyle = 'rgba(255,220,80,0.28)';
+    ctx.beginPath();
+    ctx.moveTo(g.pos.x,g.pos.y);
+    ctx.arc(g.pos.x,g.pos.y,range, guardAngle-g.halfAngle, guardAngle+g.halfAngle);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#ff4757';
+    ctx.fillRect(g.pos.x-8, g.pos.y-8, 16, 16);
+  }
+
+  for(const t of towers){
+    let range = t.range;
+    if(L.shadowZone && pointInRect(t.pos.x,t.pos.y,L.shadowZone)) range *= 0.55;
+    ctx.fillStyle = 'rgba(197,140,255,0.28)';
+    ctx.beginPath();
+    ctx.moveTo(t.pos.x,t.pos.y);
+    ctx.arc(t.pos.x,t.pos.y,range, t.angle-t.halfAngle, t.angle+t.halfAngle);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#a55eea';
+    ctx.beginPath();
+    ctx.moveTo(t.pos.x, t.pos.y-10);
+    ctx.lineTo(t.pos.x+10, t.pos.y+8);
+    ctx.lineTo(t.pos.x-10, t.pos.y+8);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.fillStyle = '#00e5ff';
+  ctx.fillRect(player.x, player.y, player.w, player.h);
+
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0,0,CW,HUD_H);
+  ctx.fillStyle = '#ffd166';
+  ctx.font = '16px monospace';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(L.name, 14, HUD_H/2);
+  ctx.fillStyle = '#4fd1c5';
+  ctx.textAlign = 'right';
+  ctx.fillText('SCORE ' + elapsed.toFixed(1) + 's', CW-14, HUD_H/2);
+  ctx.textAlign = 'left';
+  ctx.font = '12px monospace';
+  let bottomLine = 'AREA ' + (levelIndex+1) + '/' + LEVELS.length;
+  if(item){
+    bottomLine += '  |  OBJECTIVE: ' + item.hudLabel + (item.collected ? ' - DONE, HEAD TO EXIT' : ' - NOT YET');
+    ctx.fillStyle = item.collected ? '#51cf66' : '#ffa94d';
+  } else {
+    ctx.fillStyle = '#888';
+  }
+  ctx.fillText(bottomLine, 14, HUD_H-8);
+}
+
+function loop(now){
+  if(state !== 'PLAYING') return;
+  const dt = Math.min((now-lastTime)/1000, 0.05);
+  lastTime = now;
+  elapsed += dt;
+  update(dt);
+  if(state==='PLAYING'){
+    draw();
+    requestAnimationFrame(loop);
+  }
+}
+
+window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; });
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+document.getElementById('startBtn').addEventListener('click', startRun);
+document.getElementById('restartBtn').addEventListener('click', startRun);
+
+initLevel(0);
+draw();
+</script>
+</body>
+</html>
