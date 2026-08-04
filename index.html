@@ -586,6 +586,16 @@ function playSong(song, loop){
 }
 
 const SONGS = {
+  higherGround: {bpm:120, notes:[
+    ['C4',0.5],['E4',0.5],['G4',0.5],['G4',0.5],
+    ['A4',0.5],['G4',0.5],['F4',0.5],['E4',1],
+    ['D4',0.5],['F4',0.5],['A4',0.5],['A4',0.5],
+    ['G4',1.5],['R',0.5],
+    ['G4',0.5],['C5',0.5],['C5',0.5],['B4',0.5],
+    ['A4',0.5],['G4',0.5],['F4',0.5],['E4',0.5],
+    ['D4',0.5],['E4',0.5],['F4',0.5],['G4',0.5],
+    ['C5',1.5],['R',1]
+  ]},
   countYourBlessings: {bpm:112, notes:[
     ['C4',0.5],['E4',0.5],['G4',0.5],['G4',0.5],
     ['A4',0.5],['G4',0.5],['F4',0.5],['E4',0.5],
@@ -830,8 +840,9 @@ function showSelectScreen(){
   startScreen.classList.add('hidden');
   endScreen.classList.add('hidden');
   selectScreen.classList.remove('hidden');
+  stopAlmaMater();
   ensureAudio();
-  playAlmaMater();
+  playSong(SONGS.higherGround, true);
 }
 
 const LEVELS = [
