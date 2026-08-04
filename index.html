@@ -519,9 +519,16 @@ function playChiptuneNote(freq, time, dur){
   bass.stop(time+dur+0.02);
 }
 
+// Lookahead scheduler: queues notes ahead of time using the AudioContext's own
+// precise clock, so playback stays smooth even when the game loop's canvas
+// rendering is busy on the main thread (a plain setTimeout-per-note scheduler
+// would stutter/skip under that load).
+const SCHEDULE_AHEAD = 0.2;   // seconds of lookahead to keep queued
+const SCHEDULER_TICK = 25;    // ms between scheduler checks
+
 function stopMusic(){
   musicTrackToken++;
-  if(musicTimer){ clearTimeout(musicTimer); musicTimer = null; }
+  if(musicTimer){ clearInterval(musicTimer); musicTimer = null; }
 }
 
 function playSong(song, loop){
@@ -529,39 +536,55 @@ function playSong(song, loop){
   const token = musicTrackToken;
   ensureAudio();
   const secPerBeat = 60/song.bpm;
-  function scheduleFrom(i){
-    if(token !== musicTrackToken) return;
-    if(i >= song.notes.length){
-      if(loop){ musicTimer = setTimeout(()=>scheduleFrom(0), 280); }
-      return;
-    }
-    const pair = song.notes[i];
+  let index = 0;
+  let nextNoteTime = audioCtx.currentTime + 0.05;
+
+  function queueNote(){
+    const pair = song.notes[index];
     const dur = pair[1]*secPerBeat;
     const freq = noteFreq(pair[0]);
-    playChiptuneNote(freq, audioCtx.currentTime+0.02, dur*0.98);
-    musicTimer = setTimeout(()=>scheduleFrom(i+1), dur*1000);
+    playChiptuneNote(freq, nextNoteTime, dur*0.98);
+    nextNoteTime += dur;
+    index++;
+    if(index >= song.notes.length){
+      if(loop){ index = 0; return true; }
+      return false;
+    }
+    return true;
   }
-  scheduleFrom(0);
+
+  musicTimer = setInterval(() => {
+    if(token !== musicTrackToken){ clearInterval(musicTimer); return; }
+    while(nextNoteTime < audioCtx.currentTime + SCHEDULE_AHEAD){
+      if(!queueNote()){
+        clearInterval(musicTimer);
+        musicTimer = null;
+        break;
+      }
+    }
+  }, SCHEDULER_TICK);
 }
 
 const SONGS = {
   title: {bpm:60, notes:[
-    ['D#4',0.28], ['E4',0.09], ['R',0.13], ['F4',0.5], ['R',0.15],
-    ['G4',0.51], ['G#4',0.46], ['R',0.29], ['A#4',1.0], ['R',0.36],
-    ['G4',0.83], ['R',0.63], ['A#4',0.45], ['R',0.2], ['C5',1.41],
-    ['R',0.18], ['A#4',5.2], ['R',0.27], ['B4',0.09], ['A#4',0.24],
-    ['R',0.5], ['B4',0.11], ['A#4',1.25], ['A4',0.09], ['G4',1.29],
-    ['R',0.71], ['F4',0.81], ['R',0.45], ['D#4',0.6], ['R',0.23],
-    ['F4',0.43], ['D#4',0.56], ['R',0.14], ['C#4',0.11], ['D4',0.46],
-    ['R',0.28], ['D#4',3.78], ['R',0.17], ['F4',0.41], ['G4',0.55],
-    ['G#4',0.32], ['R',0.27], ['A#4',1.01], ['R',0.24], ['G4',0.6],
-    ['R',0.43], ['A#4',0.35], ['R',0.15], ['C5',1.2], ['R',0.18],
-    ['A#4',3.19], ['R',0.13], ['D#5',0.44], ['R',0.18], ['A#4',0.51],
-    ['R',0.21], ['G#4',0.62], ['G4',1.05], ['R',0.24], ['F4',0.55],
-    ['R',0.73], ['D#4',1.4], ['R',0.17], ['E4',0.1], ['R',0.6],
-    ['F#4',0.1], ['F4',0.47], ['R',0.21], ['D#4',0.63], ['R',0.15],
-    ['D4',0.25], ['D#4',0.09], ['R',0.16], ['D4',0.15], ['R',0.29],
-    ['D#4',1.27]
+    ['A#3',0.26], ['R',0.34], ['E4',0.5], ['R',0.31], ['F4',0.48],
+    ['R',0.47], ['G4',0.41], ['R',0.16], ['A4',0.12], ['G#4',0.51],
+    ['R',0.17], ['B4',0.17], ['A#4',0.87], ['R',0.65], ['G4',1.21],
+    ['R',0.75], ['A#4',0.6], ['R',0.25], ['C#5',0.1], ['C5',0.32],
+    ['R',0.4], ['C#5',0.1], ['C5',0.32], ['R',0.44], ['A#4',2.67],
+    ['R',0.85], ['B4',0.21], ['A#4',0.23], ['R',0.4], ['D#5',0.47],
+    ['R',0.47], ['A#4',0.42], ['R',0.43], ['G#4',0.39], ['R',0.52],
+    ['G4',1.22], ['R',0.57], ['F4',0.29], ['R',1.0], ['D#4',2.27],
+    ['E4',0.1], ['R',0.4], ['F4',0.48], ['R',0.4], ['D#4',0.48],
+    ['R',0.41], ['C#4',0.09], ['D4',0.24], ['R',0.59], ['D#4',3.31],
+    ['R',0.25], ['F4',0.45], ['R',0.25], ['G4',0.51], ['R',0.19],
+    ['A4',0.11], ['G#4',0.47], ['R',0.23], ['A#4',1.07], ['R',0.47],
+    ['G4',1.13], ['R',0.54], ['A4',0.35], ['R',0.3], ['C5',1.11],
+    ['R',0.39], ['A#4',3.7], ['R',0.24], ['D#5',0.49], ['R',0.18],
+    ['A#4',0.57], ['R',0.16], ['G#4',0.6], ['R',0.14], ['G4',1.37],
+    ['R',0.23], ['F4',0.62], ['R',0.3], ['D#4',3.01], ['R',0.19],
+    ['F4',0.74], ['R',0.32], ['D#4',0.62], ['R',0.43], ['D4',0.54],
+    ['R',0.3], ['D#4',0.9]
   ]},
   countYourBlessings: {bpm:112, notes:[
     ['C4',0.5],['E4',0.5],['G4',0.5],['G4',0.5],
