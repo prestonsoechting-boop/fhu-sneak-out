@@ -454,7 +454,7 @@ function drawItemIcon(it){
 // ---------- AUDIO (chiptune synth, no external files) ----------
 // Title theme is transcribed (via pitch detection) from a recording of the real FHU alma mater.
 // Level tracks are simplified chiptune arrangements of public-domain gospel hymns:
-// Walking in the Light of God (James Rowe, 1911), The Old Rugged Cross (1913),
+// Count Your Blessings (Oatman/Excell, 1897), Amazing Grace (1779/1829),
 // Shall We Gather at the River (1864), In the Sweet By and By (1868),
 // When the Roll Is Called Up Yonder (1893), I'll Fly Away (1929).
 const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
@@ -566,18 +566,22 @@ const SONGS = {
     ['F4',0.42], ['R',0.13], ['D#4',0.32], ['E4',0.1], ['R',0.33],
     ['C#4',0.1], ['D4',0.7], ['R',0.14], ['D#4',1.7]
   ]},
-  walkingInLight: {bpm:118, notes:[
-    ['G4',1],['B4',1],['D5',1],['B4',1],
-    ['C5',1],['B4',0.5],['A4',0.5],['G4',2],
-    ['A4',1],['B4',1],['C5',1],['D5',1],
-    ['B4',1],['G4',1],['G4',2],
+  countYourBlessings: {bpm:112, notes:[
+    ['C4',0.5],['E4',0.5],['G4',0.5],['G4',0.5],
+    ['A4',0.5],['G4',0.5],['F4',0.5],['E4',0.5],
+    ['C4',0.5],['E4',0.5],['G4',0.5],['G4',0.5],
+    ['F4',0.5],['E4',0.5],['D4',0.5],['C4',1.5],
     ['R',1]
   ]},
-  oldRuggedCross: {bpm:96, notes:[
-    ['D4',1],['G4',1],['B4',1],
-    ['A4',1],['G4',0.5],['F#4',0.5],['E4',1],
-    ['D4',1],['G4',1],['B4',1],
-    ['D5',1],['B4',0.5],['A4',0.5],['G4',2],
+  amazingGrace: {bpm:84, notes:[
+    ['D4',1],['G4',1],['G4',1],
+    ['B4',1.5],['G4',0.5],['E4',1],['D4',2],
+    ['R',1],
+    ['G4',1],['B4',1],['A4',1],['G4',2],
+    ['R',1],
+    ['G4',1],['B4',1],['B4',1],
+    ['D5',1.5],['B4',0.5],['G4',1],
+    ['E4',1],['D4',1],['B4',0.5],['G4',2.5],
     ['R',1]
   ]},
   shallWeGather: {bpm:108, notes:[
@@ -609,7 +613,7 @@ const SONGS = {
     ['R',1]
   ]}
 };
-const LEVEL_SONGS = ['walkingInLight','oldRuggedCross','shallWeGather','sweetByAndBy','whenTheRoll','illFlyAway'];
+const LEVEL_SONGS = ['countYourBlessings','amazingGrace','shallWeGather','sweetByAndBy','whenTheRoll','illFlyAway'];
 
 muteBtn.addEventListener('click', (e) => {
   e.stopPropagation();
