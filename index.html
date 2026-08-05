@@ -17,6 +17,55 @@
   .overlay button { margin-top:16px; padding:12px 28px; font-size:15px; font-family:inherit; background:#ffd166; color:#1a1a1a; border:none; border-radius:4px; cursor:pointer; letter-spacing:1px; }
   .overlay button:hover { background:#ffdd8a; }
   .score { font-size:32px; color:#4fd1c5; margin:10px 0; }
+
+  /* --- 80s arcade title screen --- */
+  #startScreen { position:relative; overflow:hidden; }
+  #startScreen::before {
+    content:''; position:absolute; inset:0; pointer-events:none; z-index:1;
+    background:repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 1px, transparent 1px, transparent 3px);
+    mix-blend-mode:overlay;
+  }
+  #startScreen > * { position:relative; z-index:2; }
+  #startScreen h1 {
+    font-family:'Courier New', monospace; font-weight:700; text-transform:uppercase; letter-spacing:4px;
+    color:#fff200;
+    text-shadow: 3px 0 0 #ff2e9a, -3px 0 0 #00e5ff, 0 0 12px rgba(255,242,0,0.7), 0 4px 0 rgba(0,0,0,0.6);
+    animation: titleFlicker 3.4s infinite steps(1);
+  }
+  @keyframes titleFlicker {
+    0%, 90%, 100% { opacity:1; }
+    91% { opacity:0.7; }
+    93% { opacity:1; }
+    95% { opacity:0.55; }
+    96% { opacity:1; }
+  }
+  #startScreen .retroSub {
+    color:#00e5ff; letter-spacing:3px; font-size:11px; margin:-2px 0 12px 0; text-shadow:0 0 6px rgba(0,229,255,0.8);
+  }
+  #startScreen .insertCoin {
+    color:#ff2e9a; letter-spacing:2px; font-size:11px; margin-bottom:10px; text-shadow:0 0 6px rgba(255,46,154,0.8);
+    animation: coinBlink 1.1s steps(1) infinite;
+  }
+  @keyframes coinBlink { 0%,49%{opacity:1;} 50%,100%{opacity:0;} }
+  #startScreen .instructions {
+    border:2px solid #ff2e9a; box-shadow:0 0 10px rgba(255,46,154,0.45), inset 0 0 0 2px #000;
+    background:rgba(0,0,0,0.4); padding:10px 16px; margin:8px 0; max-width:640px; width:100%;
+    text-align:left; box-sizing:border-box;
+  }
+  #startScreen .instructions h2 {
+    margin:0 0 6px 0; font-size:12px; letter-spacing:2px; color:#39ff14; text-shadow:0 0 6px rgba(57,255,20,0.7);
+  }
+  #startScreen .instructions p { margin:4px 0; }
+  #startScreen #startBtn {
+    background:#000; color:#39ff14; border:2px solid #39ff14; font-weight:700; letter-spacing:2px;
+    box-shadow:0 0 8px #39ff14, inset 0 0 8px rgba(57,255,20,0.35);
+    animation: btnPulse 1.3s ease-in-out infinite;
+  }
+  #startScreen #startBtn:hover { background:#39ff14; color:#000; }
+  @keyframes btnPulse {
+    0%,100% { box-shadow:0 0 6px #39ff14, inset 0 0 6px rgba(57,255,20,0.25); }
+    50% { box-shadow:0 0 18px #39ff14, inset 0 0 12px rgba(57,255,20,0.6); }
+  }
   .hidden { display:none; }
   .joystick-base { position:absolute; width:90px; height:90px; margin-left:-45px; margin-top:-45px; border-radius:50%; background:rgba(255,255,255,0.12); border:2px solid rgba(255,255,255,0.35); display:none; z-index:5; pointer-events:none; }
   .joystick-knob { position:absolute; width:44px; height:44px; margin-left:-22px; margin-top:-22px; border-radius:50%; background:rgba(255,209,102,0.55); border:2px solid rgba(255,209,102,0.85); display:none; z-index:6; pointer-events:none; }
@@ -34,16 +83,39 @@
 
   <div id="startScreen" class="overlay">
     <h1>FHU SNEAK OUT</h1>
-    <p>Curfew's in effect. Get across campus without getting spotted by security.</p>
-    <p>Desktop: WASD / Arrow keys to move. Mobile: touch and drag anywhere to steer with the on-screen joystick.</p>
-    <p>Avoid the yellow vision cones. Duck behind trees, pillars, tables and walls to break line of sight. Reach the green exit to move to the next area.</p>
-    <p style="color:#c58cff;">Purple watchtowers sweep their cone in a full circle and never move — time your dash for the gap in the sweep instead of beelining for the exit.</p>
-    <p style="color:#ffd166;">Badger Gym has a pool — moving near the water can make noise and draw a guard even outside their cone.</p>
-    <p style="color:#ffa94d;">Every area has an objective (gold diamond) you must grab before the exit unlocks: Commons — paint the lion statue. Gardner — retrieve your bible. Badger Gym — retrieve clothing from the middle of the pool. Brown Kopel — retrieve your scholarship. Lloyd Auditorium — put on your shorts. Gano/Lions Pride — check your mail.</p>
-    <p style="color:#9fd8ff;">Security comes in a few flavors: big slow guys with a wide flashlight, quick red-and-white guards, and in the Commons, a patrol car with a swiveling searchlight.</p>
+    <div class="retroSub">&mdash; A WILCOXSON HOUSE PRODUCTION &mdash;</div>
+    <div class="insertCoin">&#9654; INSERT QUARTER TO CONTINUE &#9664;</div>
+
+    <div class="instructions">
+      <h2>MISSION BRIEFING</h2>
+      <p>Curfew's in effect. Get across campus without getting spotted by security.</p>
+    </div>
+
+    <div class="instructions">
+      <h2>CONTROLS</h2>
+      <p>Desktop: WASD / Arrow keys to move. Mobile: touch and drag anywhere to steer with the on-screen joystick.</p>
+    </div>
+
+    <div class="instructions">
+      <h2>HOW TO SNEAK</h2>
+      <p>Avoid the yellow vision cones. Duck behind trees, pillars, tables and walls to break line of sight. Reach the green exit to move to the next area.</p>
+      <p style="color:#c58cff;">Purple watchtowers sweep their cone in a full circle and never move — time your dash for the gap in the sweep instead of beelining for the exit.</p>
+      <p style="color:#ffd166;">Badger Gym has a pool — moving near the water can make noise and draw a guard even outside their cone.</p>
+    </div>
+
+    <div class="instructions">
+      <h2>OBJECTIVES</h2>
+      <p style="color:#ffa94d;">Every area has an objective (gold diamond) you must grab before the exit unlocks: Commons — paint the lion statue. Gardner — retrieve your bible. Badger Gym — retrieve clothing from the middle of the pool. Brown Kopel — retrieve your scholarship. Lloyd Auditorium — put on your shorts. Gano/Lions Pride — check your mail.</p>
+    </div>
+
+    <div class="instructions">
+      <h2>SECURITY</h2>
+      <p style="color:#9fd8ff;">Security comes in a few flavors: big slow guys with a wide flashlight, quick red-and-white guards, and in the Commons, a patrol car with a swiveling searchlight.</p>
+    </div>
+
     <p>Score is total time survived. The further you get, the higher it climbs.</p>
-    <p style="color:#9a9a9a; font-size:11px;">Music: 16-bit chiptune covers of classic public-domain gospel hymns, one per area. Tap the speaker icon to mute.</p>
-    <button id="startBtn">START RUN</button>
+    <p style="color:#9a9a9a; font-size:11px;">Music: original stealth-mission chiptune on this screen; 16-bit gospel hymn covers per area. Tap the speaker icon to mute.</p>
+    <button id="startBtn">SELECT YOUR RUNNER</button>
   </div>
 
   <div id="selectScreen" class="overlay hidden" style="justify-content:flex-start; padding-top:2.5rem;">
