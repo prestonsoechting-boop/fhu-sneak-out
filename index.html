@@ -461,11 +461,12 @@ function drawItemIcon(it){
 }
 
 // ---------- AUDIO (chiptune synth, no external files) ----------
-// Title/select screens play a chiptune transcription of the real FHU alma mater
-// (transcribed from Preston's own recording via pitch detection). Level tracks are
-// simplified chiptune arrangements of public-domain gospel hymns: Count Your Blessings
-// (Oatman/Excell, 1897), Amazing Grace (1779/1829), Shall We Gather at the River (1864),
-// In the Sweet By and By (1868), When the Roll Is Called Up Yonder (1893), I'll Fly Away (1929).
+// Title screen plays an original low-register chiptune ostinato (deep pulsing bass,
+// minor-key chromatic tension) meant to evoke sneaking around at night. Level tracks
+// are simplified chiptune arrangements of public-domain gospel hymns: Count Your
+// Blessings (Oatman/Excell, 1897), Amazing Grace (1779/1829), Shall We Gather at the
+// River (1864), In the Sweet By and By (1868), When the Roll Is Called Up Yonder
+// (1893), I'll Fly Away (1929).
 const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
 let audioCtx = null;
 let musicGain = null;
@@ -575,27 +576,14 @@ function playSong(song, loop){
 }
 
 const SONGS = {
-  // FHU Alma Mater - transcribed from Preston's own recording via pitch detection.
-  fhuAlmaMater: {bpm:60, notes:[
-    ['C3',0.17],['R',0.21],['D3',0.2],['R',0.22],
-    ['D#3',0.13],['R',0.32],['F3',0.14],['R',0.28],
-    ['G3',0.11],['R',0.88],['E3',0.52],['R',0.49],
-    ['G3',0.11],['R',0.35],['G#3',0.6],['R',0.34],
-    ['F#3',0.15],['R',0.31],['G3',0.72],['F#3',0.11],
-    ['G3',1.17],['R',0.23],['C4',0.25],['R',0.23],
-    ['G3',0.17],['F#3',0.09],['R',0.35],['F3',0.1],
-    ['R',0.38],['E3',0.77],['R',0.47],['D3',0.16],
-    ['R',0.41],['C3',0.17],['B2',0.09],['C3',1.49],
-    ['R',0.33],['D3',0.17],['R',0.43],['C3',3.1],
-    ['R',1.55],['F#3',0.13],['R',0.29],['G3',0.16],
-    ['R',0.68],['E3',0.11],['R',1.14],['G#3',0.11],
-    ['R',0.22],['G3',0.16],['R',0.27],['F#3',0.83],
-    ['G3',0.81],['R',0.17],['C4',0.21],['R',0.21],
-    ['G3',0.12],['R',0.33],['F3',0.18],['R',0.19],
-    ['E3',0.1],['R',0.38],['D#3',0.11],['R',0.34],
-    ['C#3',0.09],['R',1.63],['B2',0.15],['R',0.32],
-    ['D3',0.13],['R',0.34],['B2',1.11],
-    ['R',1.5]
+  // Original stealth-mission theme: a low, pulsing minor-key ostinato (deep bass
+  // "footsteps", a chromatic half-step wobble for tension, one high stab for a
+  // near-miss jolt, and a descending run back into the loop).
+  titleTheme: {bpm:96, notes:[
+    ['A2',0.5],['R',0.5],['A2',0.5],['R',0.5],['A2',0.5],['R',0.5],['C3',0.5],['R',0.5],
+    ['A2',0.5],['R',0.5],['G#2',0.5],['R',0.5],['A2',0.5],['R',0.5],['A2',0.5],['R',0.5],
+    ['A2',0.5],['R',0.5],['E4',0.5],['R',0.5],['A2',0.5],['R',0.5],['C3',0.5],['R',0.5],
+    ['A2',0.5],['G2',0.5],['F2',0.5],['E2',0.5],['R',0.5],['R',0.5],['R',0.5],['R',0.5]
   ]},
   higherGround: {bpm:120, notes:[
     ['C4',0.5],['E4',0.5],['G4',0.5],['G4',0.5],
@@ -665,7 +653,7 @@ muteBtn.addEventListener('click', (e) => {
 function unlockAudioOnce(){
   ensureAudio();
   if(state === 'START'){
-    playSong(SONGS.fhuAlmaMater, true);
+    playSong(SONGS.titleTheme, true);
   }
 }
 document.addEventListener('pointerdown', unlockAudioOnce, {once:true});
