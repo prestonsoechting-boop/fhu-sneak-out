@@ -128,6 +128,7 @@
     </div>
 
     <p>Score is total time survived. The further you get, the higher it climbs.</p>
+    <p style="color:#39ff14;">Clear all 6 areas and you'll drop straight into a bonus tunnel dash &mdash; keep dodging obstacles for as long as you can for extra score.</p>
     <p style="color:#9a9a9a; font-size:11px;">Music: original stealth-mission chiptune on this screen; 16-bit gospel hymn covers per area. Tap the speaker icon to mute.</p>
     <button id="startBtn">SELECT YOUR RUNNER</button>
   </div>
@@ -671,6 +672,13 @@ const SONGS = {
     ['A2',0.5],['R',0.5],['E4',0.5],['R',0.5],['A2',0.5],['R',0.5],['C3',0.5],['R',0.5],
     ['A2',0.5],['G2',0.5],['F2',0.5],['E2',0.5],['R',0.5],['R',0.5],['R',0.5],['R',0.5]
   ]},
+  // Original bonus-round theme: a fast E-minor arpeggio "sprint" loop for the tunnel dash.
+  bonusTheme: {bpm:160, notes:[
+    ['E3',0.5],['G3',0.5],['B3',0.5],['E4',0.5],['B3',0.5],['G3',0.5],['E3',0.5],['G3',0.5],
+    ['E3',0.5],['G3',0.5],['B3',0.5],['E4',0.5],['B3',0.5],['G3',0.5],['E3',0.5],['G3',0.5],
+    ['A3',0.5],['C4',0.5],['E4',0.5],['A4',0.5],['E4',0.5],['C4',0.5],['A3',0.5],['C4',0.5],
+    ['G3',0.5],['B3',0.5],['D4',0.5],['G4',0.5],['D4',0.5],['B3',0.5],['G3',0.5],['B3',0.5]
+  ]},
   higherGround: {bpm:120, notes:[
     ['C4',0.5],['E4',0.5],['G4',0.5],['G4',0.5],
     ['A4',0.5],['G4',0.5],['F4',0.5],['E4',1],
@@ -1085,6 +1093,23 @@ let player, guards, towers, cars, item, lastTime;
 let toastMessage = null, toastTimer = 0;
 const keys = {};
 
+// ---------- BONUS TUNNEL RUN (unlocked after clearing all 6 areas) ----------
+// Pseudo-3D corridor: obstacles are given a depth value that grows over time and are
+// projected toward the screen edges as they approach, classic "into the screen"
+// perspective trick (Zaxxon/Contra corridor sections) done entirely with 2D canvas math
+// - no WebGL needed. Player dodges freely in the tunnel's cross-section; a hit ends the
+// run. Score is survival time, added to the campus time for a combined final score.
+const BONUS_GRACE = 2.2;
+const BONUS_HIT_RADIUS = 0.34;
+const BONUS_COLLIDE_D = 0.93;
+const BONUS_DESPAWN_D = 1.18;
+const BONUS_MAX_SPEED = 2.6;
+let bonusElapsed = 0;
+let bonusObstacles = [];
+let bonusSpawnTimer = 0;
+let bonusTx = 0, bonusTy = 0, bonusVx = 0, bonusVy = 0;
+let tunnelPhase = 0;
+
 const joystick = {active:false, touchId:null, originX:0, originY:0, dx:0, dy:0};
 const joyBase = document.createElement('div');
 joyBase.className = 'joystick-base';
@@ -1101,7 +1126,7 @@ function wrapRelativePos(touch){
 }
 
 wrap.addEventListener('touchstart', e => {
-  if (state !== 'PLAYING') return;
+  if (state !== 'PLAYING' && state !== 'BONUS') return;
   if (joystick.touchId !== null) return;
   const t = e.changedTouches[0];
   const pos = wrapRelativePos(t);
@@ -1195,6 +1220,92 @@ function endRun(caught){
   endTitle.textContent = caught ? 'SPOTTED!' : 'YOU MADE IT OFF CAMPUS!';
   endSub.textContent = caught ? ('Caught at ' + LEVELS[levelIndex].name) : 'Full campus crossed. Nice run.';
   endScore.textContent = elapsed.toFixed(1) + 's';
+  endScreen.classList.remove('hidden');
+  joystick.active = false;
+  joystick.touchId = null;
+  joyBase.style.display = 'none';
+  joyKnob.style.display = 'none';
+}
+
+function startBonusRun(){
+  state = 'BONUS';
+  bonusElapsed = 0;
+  bonusObstacles = [];
+  bonusSpawnTimer = 0.6;
+  bonusTx = 0; bonusTy = 0; bonusVx = 0; bonusVy = 0;
+  tunnelPhase = 0;
+  toastMessage = 'CAMPUS CLEARED! BONUS DASH: DODGE DOWN THE TUNNEL';
+  toastTimer = BONUS_GRACE;
+  lastTime = performance.now();
+  playSong(SONGS.bonusTheme, true);
+  requestAnimationFrame(loop);
+}
+
+function updateBonus(dt){
+  bonusElapsed += dt;
+  if(toastTimer > 0) toastTimer = Math.max(0, toastTimer - dt);
+  tunnelPhase = (tunnelPhase + dt * (0.55 + Math.min(bonusElapsed*0.01, 0.35))) % 1;
+
+  let mvx=0, mvy=0;
+  if (joystick.active && (joystick.dx !== 0 || joystick.dy !== 0)) {
+    mvx = joystick.dx;
+    mvy = joystick.dy;
+  } else {
+    if(keys['arrowup']||keys['w']) mvy -= 1;
+    if(keys['arrowdown']||keys['s']) mvy += 1;
+    if(keys['arrowleft']||keys['a']) mvx -= 1;
+    if(keys['arrowright']||keys['d']) mvx += 1;
+  }
+  const mag = Math.hypot(mvx,mvy) || 1;
+  const ch = selectedCharacter || DEFAULT_CHAR;
+  const targetVx = (mvx/mag) * BONUS_MAX_SPEED;
+  const targetVy = (mvy/mag) * BONUS_MAX_SPEED;
+  const ease = Math.min(1, ch.accel * dt);
+  bonusVx += (targetVx - bonusVx) * ease;
+  bonusVy += (targetVy - bonusVy) * ease;
+  bonusTx = Math.max(-0.86, Math.min(0.86, bonusTx + bonusVx*dt));
+  bonusTy = Math.max(-0.86, Math.min(0.86, bonusTy + bonusVy*dt));
+
+  const activeT = bonusElapsed - BONUS_GRACE;
+  if(activeT > 0){
+    bonusSpawnTimer -= dt;
+    if(bonusSpawnTimer <= 0){
+      bonusSpawnTimer = Math.max(0.45, 1.05 - activeT*0.012);
+      bonusObstacles.push({
+        ox: (Math.random()*2-1)*0.75,
+        oy: (Math.random()*2-1)*0.75,
+        d: 0,
+        kind: Math.floor(Math.random()*3),
+        hit:false
+      });
+    }
+  }
+
+  const speedD = 0.34 + Math.min(Math.max(activeT,0)*0.012, 0.28);
+  for(let i=bonusObstacles.length-1;i>=0;i--){
+    const ob = bonusObstacles[i];
+    const prevD = ob.d;
+    ob.d += speedD*dt;
+    if(prevD < BONUS_COLLIDE_D && ob.d >= BONUS_COLLIDE_D && !ob.hit){
+      const dist = Math.hypot(ob.ox-bonusTx, ob.oy-bonusTy);
+      if(dist < BONUS_HIT_RADIUS){
+        ob.hit = true;
+        endBonusRun();
+        return;
+      }
+    }
+    if(ob.d >= BONUS_DESPAWN_D){
+      bonusObstacles.splice(i,1);
+    }
+  }
+}
+
+function endBonusRun(){
+  state = 'END';
+  stopMusic();
+  endTitle.textContent = 'BUSTED IN THE TUNNEL!';
+  endSub.textContent = 'Campus ' + elapsed.toFixed(1) + 's + Bonus dash ' + bonusElapsed.toFixed(1) + 's';
+  endScore.textContent = (elapsed + bonusElapsed).toFixed(1) + 's';
   endScreen.classList.remove('hidden');
   joystick.active = false;
   joystick.touchId = null;
@@ -1337,7 +1448,7 @@ function update(dt){
     if(!item || item.collected){
       levelIndex++;
       if(levelIndex >= LEVELS.length){
-        endRun(false);
+        startBonusRun();
         return;
       }
       initLevel(levelIndex);
@@ -1486,15 +1597,113 @@ function draw(){
   }
 }
 
+function drawBonus(){
+  ctx.fillStyle = '#0a0a14';
+  ctx.fillRect(0,0,CW,CH);
+
+  const cx = CW/2, cy = PF_TOP + (CH-PF_TOP)/2;
+  const maxW = CW*0.46, maxH = (CH-PF_TOP)*0.44;
+
+  const N = 14;
+  for(let i=0;i<N;i++){
+    const d = (i/N + tunnelPhase) % 1;
+    const persp = Math.pow(d, 1.7);
+    const w = maxW*persp, h = maxH*persp;
+    const bright = 25 + persp*115;
+    ctx.strokeStyle = 'rgb(' + Math.round(bright*0.55) + ',' + Math.round(bright*0.75) + ',' + Math.round(bright) + ')';
+    ctx.lineWidth = 1 + persp*2.2;
+    ctx.strokeRect(cx-w, cy-h, w*2, h*2);
+  }
+  ctx.strokeStyle = 'rgba(120,150,190,0.45)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sy]) => {
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx+sx*maxW, cy+sy*maxH);
+  });
+  ctx.stroke();
+
+  const sorted = bonusObstacles.slice().sort((a,b) => a.d - b.d);
+  for(const ob of sorted){
+    const dd = Math.min(ob.d, 1.15);
+    const persp = Math.pow(dd, 1.7);
+    const ox = cx + ob.ox*maxW*persp;
+    const oy = cy + ob.oy*maxH*persp;
+    const scale = persp*46;
+    if(ob.kind === 0){
+      ctx.fillStyle = '#c0392b';
+      ctx.fillRect(ox-scale*0.35, oy-scale*0.8, scale*0.7, scale*1.6);
+      ctx.strokeStyle = '#7a1f16';
+      ctx.strokeRect(ox-scale*0.35, oy-scale*0.8, scale*0.7, scale*1.6);
+    } else if(ob.kind === 1){
+      ctx.fillStyle = '#e67e22';
+      ctx.fillRect(ox-scale*0.9, oy-scale*0.35, scale*1.8, scale*0.7);
+      ctx.strokeStyle = '#a85a17';
+      ctx.strokeRect(ox-scale*0.9, oy-scale*0.35, scale*1.8, scale*0.7);
+    } else {
+      ctx.fillStyle = '#8e44ad';
+      ctx.beginPath();
+      ctx.ellipse(ox, oy, scale*0.55, scale*0.7, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#5b2d73';
+      ctx.stroke();
+    }
+  }
+
+  const pc = selectedCharacter || DEFAULT_CHAR;
+  const px = cx + bonusTx*maxW, py = cy + bonusTy*maxH;
+  drawShadow(px, py+20, 24);
+  ctx.fillStyle = pc.bodyColor;
+  ctx.beginPath();
+  ctx.ellipse(px, py, 20, 24, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = shade(pc.bodyColor, -50);
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = pc.accentColor;
+  ctx.fillRect(px-12, py-2, 24, 9);
+
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0,0,CW,HUD_H);
+  ctx.fillStyle = '#39ff14';
+  ctx.font = '16px monospace';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('BONUS TUNNEL DASH', 14, HUD_H/2);
+  ctx.fillStyle = '#4fd1c5';
+  ctx.textAlign = 'right';
+  ctx.fillText('SCORE ' + (elapsed + bonusElapsed).toFixed(1) + 's', CW-14, HUD_H/2);
+  ctx.textAlign = 'left';
+
+  if(toastTimer > 0){
+    const alpha = Math.min(1, toastTimer);
+    ctx.fillStyle = 'rgba(20,20,30,' + (0.85*alpha) + ')';
+    ctx.fillRect(CW/2-220, HUD_H+10, 440, 28);
+    ctx.strokeStyle = 'rgba(57,255,20,' + alpha + ')';
+    ctx.strokeRect(CW/2-220, HUD_H+10, 440, 28);
+    ctx.fillStyle = 'rgba(57,255,20,' + alpha + ')';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(toastMessage, CW/2, HUD_H+28);
+    ctx.textAlign = 'left';
+  }
+}
+
 function loop(now){
-  if(state !== 'PLAYING') return;
+  if(state !== 'PLAYING' && state !== 'BONUS') return;
   const dt = Math.min((now-lastTime)/1000, 0.05);
   lastTime = now;
-  elapsed += dt;
-  if(toastTimer > 0) toastTimer = Math.max(0, toastTimer - dt);
-  update(dt);
-  if(state==='PLAYING'){
+  if(state === 'PLAYING'){
+    elapsed += dt;
+    if(toastTimer > 0) toastTimer = Math.max(0, toastTimer - dt);
+    update(dt);
+  } else if(state === 'BONUS'){
+    updateBonus(dt);
+  }
+  if(state === 'PLAYING'){
     draw();
+    requestAnimationFrame(loop);
+  } else if(state === 'BONUS'){
+    drawBonus();
     requestAnimationFrame(loop);
   }
 }
