@@ -18,8 +18,12 @@
   .overlay button:hover { background:#ffdd8a; }
   .score { font-size:32px; color:#4fd1c5; margin:10px 0; }
 
-  /* --- 80s arcade title screen --- */
-  #startScreen { position:relative; overflow:hidden; }
+  /* --- 80s arcade title screen ---
+     Note: #startScreen must NOT set position or overflow here — .overlay already
+     provides position:absolute (containing block for ::before below) and
+     overflow-y:auto (needed to scroll to the button on short landscape phones).
+     An ID rule beats the .overlay class rule, so redeclaring either would
+     silently break scrolling / stacking on mobile. */
   #startScreen::before {
     content:''; position:absolute; inset:0; pointer-events:none; z-index:1;
     background:repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 1px, transparent 1px, transparent 3px);
@@ -65,6 +69,16 @@
   @keyframes btnPulse {
     0%,100% { box-shadow:0 0 6px #39ff14, inset 0 0 6px rgba(57,255,20,0.25); }
     50% { box-shadow:0 0 18px #39ff14, inset 0 0 12px rgba(57,255,20,0.6); }
+  }
+  /* Short landscape phones: tighten spacing so there's less to scroll through. */
+  @media (max-height: 420px) {
+    #startScreen h1 { font-size:16px; margin-bottom:4px; }
+    #startScreen .retroSub, #startScreen .insertCoin { margin-bottom:4px; font-size:9px; }
+    #startScreen .instructions { padding:6px 10px; margin:4px 0; }
+    #startScreen .instructions h2 { margin-bottom:3px; font-size:10px; }
+    #startScreen .instructions p { margin:2px 0; }
+    #startScreen p { margin:3px 0; }
+    #startScreen #startBtn { margin-top:8px; padding:9px 20px; }
   }
   .hidden { display:none; }
   .joystick-base { position:absolute; width:90px; height:90px; margin-left:-45px; margin-top:-45px; border-radius:50%; background:rgba(255,255,255,0.12); border:2px solid rgba(255,255,255,0.35); display:none; z-index:5; pointer-events:none; }
