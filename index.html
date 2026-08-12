@@ -1003,7 +1003,7 @@ const LEVELS = [
   guards: [
     {waypoints:[{x:150,y:80},{x:660,y:80}], speed:90, range:140, halfAngle:0.4, type:'normal'},
     {waypoints:[{x:660,y:460},{x:150,y:460}], speed:140, range:120, halfAngle:0.35, type:'fast'},
-    {waypoints:[{x:400,y:100},{x:400,y:440}], speed:58, range:145, halfAngle:0.4, type:'heavy'}
+    {waypoints:[{x:250,y:100},{x:250,y:440}], speed:58, range:145, halfAngle:0.4, type:'heavy'}
   ],
   towers: [
     {x:700,y:150, range:140, halfAngle:0.32, rotSpeed:1.6, startAngle:2.0}
@@ -1426,10 +1426,21 @@ function update(dt){
 
   for(const nz of L.noiseZones){
     if(pointInRect(pcx,pcy,nz) && mag>0.1){
-      if(Math.random() < 0.006 * player.stealthMult){
-        const nearGuard = guards.some(g => Math.hypot(g.pos.x-pcx,g.pos.y-pcy) < 260)
-          || towers.some(t => Math.hypot(t.pos.x-pcx,t.pos.y-pcy) < 260);
-        if(nearGuard){ endRun(true); return; }
+      // Splashing draws attention from nearby guards, but risk scales smoothly with
+      // distance instead of a flat yes/no radius - being at the edge of earshot is much
+      // safer than being right next to someone, and being outside the radius entirely
+      // (a guard at the far end of their patrol) is genuinely safe. This gives good
+      // timing a real payoff instead of the whole thing being a coin flip.
+      const NOISE_RADIUS = 200;
+      let minDist = Infinity;
+      for(const g of guards){ minDist = Math.min(minDist, Math.hypot(g.pos.x-pcx,g.pos.y-pcy)); }
+      for(const t of towers){ minDist = Math.min(minDist, Math.hypot(t.pos.x-pcx,t.pos.y-pcy)); }
+      if(minDist < NOISE_RADIUS){
+        const proximity = 1 - minDist/NOISE_RADIUS;
+        if(Math.random() < 0.006 * player.stealthMult * proximity){
+          endRun(true);
+          return;
+        }
       }
     }
   }
