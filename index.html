@@ -248,7 +248,11 @@ handleViewportChange();
 const fullscreenBtn = document.getElementById('fullscreenBtn');
 
 function isFullscreenSupported(){
-  return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+  // Some mobile browsers implement requestFullscreen on the element but report
+  // document.fullscreenEnabled/webkitFullscreenEnabled incorrectly (or omit the flag
+  // entirely), which was hiding the button on phones that actually support it. Checking
+  // for the method directly on the element is the more reliable signal.
+  return !!(wrap.requestFullscreen || wrap.webkitRequestFullscreen);
 }
 
 function isFullscreenActive(){
