@@ -97,6 +97,7 @@
   <canvas id="game" width="800" height="540"></canvas>
   <button id="muteBtn" aria-label="Toggle music">&#128266;</button>
   <button id="fullscreenBtn" aria-label="Toggle fullscreen">&#9974;</button>
+  <div id="fsTip" class="hidden" style="position:absolute; top:50px; right:8px; max-width:210px; background:rgba(10,10,20,0.97); border:2px solid #ffd166; border-radius:6px; padding:10px 12px; font-size:11px; line-height:1.5; color:#eee; z-index:30; box-shadow:0 4px 12px rgba(0,0,0,0.5); text-align:left;"></div>
 
   <div id="startScreen" class="overlay" style="justify-content:flex-start; padding-top:2.5rem;">
     <h1>FHU SNEAK OUT</h1>
@@ -285,8 +286,37 @@ function toggleFullscreen(){
   else lockLandscape();
 }
 
+// iPhone Safari (unlike iPad Safari, Android Chrome, and desktop browsers) refuses to
+// fullscreen anything but a <video> element — this is a long-standing, still-unresolved
+// WebKit restriction (webkit.org bug 212934), not something any amount of JS here can work
+// around. The only way to get a real no-browser-chrome experience on iPhone is launching
+// from a Home Screen icon (the page already opts into that via the apple-mobile-web-app-*
+// meta tags above). Detect that case and swap the button for a tip instead of hiding it or
+// silently doing nothing when tapped.
+const isStandaloneApp = window.navigator.standalone === true ||
+  (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+const fsTip = document.getElementById('fsTip');
+
+function showFullscreenTip(){
+  if (!fsTip) return;
+  fsTip.innerHTML = 'iPhone Safari won’t let a webpage go fullscreen directly — that’s an Apple restriction, not a bug here. Closest option: tap <b>Share</b> → <b>Add to Home Screen</b>, then launch the game from that icon. It opens with no browser bar at all.';
+  fsTip.classList.remove('hidden');
+  clearTimeout(fsTip._hideTimer);
+  fsTip._hideTimer = setTimeout(() => fsTip.classList.add('hidden'), 7000);
+}
+if (fsTip) {
+  fsTip.addEventListener('click', (e) => {
+    e.stopPropagation();
+    fsTip.classList.add('hidden');
+  });
+}
+
 if (fullscreenBtn) {
-  if (isFullscreenSupported()) {
+  if (isStandaloneApp) {
+    // Already launched from the Home Screen icon — no browser chrome to hide, so there's
+    // nothing for this button to do.
+    fullscreenBtn.style.display = 'none';
+  } else if (isFullscreenSupported()) {
     fullscreenBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleFullscreen();
@@ -297,8 +327,15 @@ if (fullscreenBtn) {
         handleViewportChange();
       });
     });
+  } else if (isTouchDevice) {
+    // No real Fullscreen API (iPhone Safari, most likely) — show the Add to Home Screen tip.
+    fullscreenBtn.setAttribute('aria-label', 'Fullscreen tips');
+    fullscreenBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showFullscreenTip();
+    });
   } else {
-    // Fullscreen API unavailable (older browsers) — hide the control rather than show a dead button.
+    // Desktop browser without Fullscreen API support (rare/old) — nothing useful to offer.
     fullscreenBtn.style.display = 'none';
   }
 }
