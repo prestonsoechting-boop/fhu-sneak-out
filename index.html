@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>FHU Sneak Out</title>
 <style>
-  html, body { margin:0; height:100%; overscroll-behavior:none; touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  html, body { margin:0; height:100%; height:100dvh; overflow:hidden; overscroll-behavior:none; touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
   body { background:#0d0d18; display:flex; align-items:center; justify-content:center; font-family: 'Courier New', monospace; }
   #wrap { position:relative; touch-action:none; }
   canvas { display:block; width:100%; height:100%; background:#0d0d18; image-rendering: pixelated; border:2px solid #444; touch-action:none; }
@@ -185,9 +185,20 @@ const rotateHint = document.getElementById('rotateHint');
 let rotateHintDismissed = false;
 const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 
+// Mobile browsers (esp. iOS Safari) report window.innerWidth/innerHeight based on the
+// full layout viewport, which includes space hidden behind the address bar / toolbar.
+// That made the canvas get sized larger than what's actually visible, cutting off the
+// bottom (or top) of the game. window.visualViewport reflects the actual visible area
+// and updates live as browser chrome shows/hides, so prefer it when available.
+function getViewportSize(){
+  if (window.visualViewport) {
+    return { w: window.visualViewport.width, h: window.visualViewport.height };
+  }
+  return { w: window.innerWidth, h: window.innerHeight };
+}
+
 function fitCanvas(){
-  const availW = window.innerWidth;
-  const availH = window.innerHeight;
+  const { w: availW, h: availH } = getViewportSize();
   let w, h;
   if (availW / availH > ASPECT) {
     h = availH;
@@ -201,7 +212,8 @@ function fitCanvas(){
 }
 
 function checkOrientation(){
-  const isPortrait = window.innerHeight > window.innerWidth;
+  const { w: availW, h: availH } = getViewportSize();
+  const isPortrait = availH > availW;
   if (isTouchDevice && isPortrait && !rotateHintDismissed) {
     rotateHint.style.display = 'flex';
   } else {
@@ -221,6 +233,11 @@ document.getElementById('dismissRotateHint').addEventListener('click', () => {
 
 window.addEventListener('resize', handleViewportChange);
 window.addEventListener('orientationchange', () => setTimeout(handleViewportChange, 100));
+if (window.visualViewport) {
+  // Fires as the address bar / toolbar shows or hides on mobile, not just on real resizes.
+  window.visualViewport.addEventListener('resize', handleViewportChange);
+  window.visualViewport.addEventListener('scroll', handleViewportChange);
+}
 handleViewportChange();
 
 function rectsOverlap(a,b){
